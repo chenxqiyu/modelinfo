@@ -582,14 +582,32 @@ root = TkinterDnD.Tk()
 root.title("All精度检查工具")
 #置顶窗口
 root.attributes("-topmost", True)
-root.geometry("520x300")
+root.geometry("480x800")
 
 label = tk.Label(root, text="将 .gguf 或 .safetensors 模型文件拖拽到这里", bg="#e0e0e0", relief="ridge", height=5)
 label.pack(fill="both", padx=10, pady=10, expand=True)
 label.drop_target_register(DND_FILES)
 label.dnd_bind('<<Drop>>', on_drop)
 
-text_box = tk.Text(root, wrap=tk.WORD)
-text_box.pack(fill="both", padx=10, pady=10, expand=True)
+# 创建文本框和滚动条容器
+text_frame = tk.Frame(root)
+text_frame.pack(fill="both", padx=10, pady=10, expand=True)
+
+# 创建文本框
+text_box = tk.Text(text_frame, wrap=tk.WORD)
+
+# 创建垂直滚动条
+v_scrollbar = tk.Scrollbar(text_frame, orient="vertical", command=text_box.yview)
+
+# 配置文本框的滚动条
+text_box.config(yscrollcommand=v_scrollbar.set)
+
+# 布局
+text_box.grid(row=0, column=0, sticky="nsew")
+v_scrollbar.grid(row=0, column=1, sticky="ns")
+
+# 配置网格权重
+text_frame.grid_rowconfigure(0, weight=1)
+text_frame.grid_columnconfigure(0, weight=1)
 
 root.mainloop()
