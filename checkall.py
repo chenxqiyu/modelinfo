@@ -218,7 +218,9 @@ def inspect_safetensors(filepath):
         
         # 生成报告
         report = f"📄 文件: {os.path.basename(filepath)}\n"
-        
+
+
+        report += f"\n{'─' * hang}\n"  # 分隔线
         # 添加元数据信息
         if metadata:
             report += f"📚 元数据信息:\n"
@@ -230,45 +232,9 @@ def inspect_safetensors(filepath):
                 report += "\n"
         else:
             report += f"📚 元数据: 无\n\n"
-        
-        report += f"{'─' * hang}\n"  # 分隔线
-        report += f"📊 总参数量: {total_params:,} ({format_param_count_practical(total_params)})\n"
-        report += f"📈 张量数量: {len(tensors)} (唯一名称: {unique_name_count}, 重复名称: {len(duplicate_names)})\n"
-        report += f"🏷️ 前缀统计: {unique_prefix_count} 个不同第一前缀, {unique_second_prefix_count} 个不同第二前缀, {unique_third_prefix_count} 个不同第三前缀\n"
-        report += f"💾 显存估算: {memory_gb:.1f} GB (基于公式: M = (P × Q) / 8 × 1.2)\n"
-        report += f"   - P = {total_params / 1_000_000_000:.1f}B (参数量)\n"
-        report += f"   - Q = {Q_value} (主要精度: {main_dtype})\n\n"
-        
-
-        # 按参数量排序显示
-        sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
-        
-        for dtype, param_count in sorted_dtypes:
-            percentage = (param_count / total_params) * 100
-            formatted_count = format_param_count_practical(param_count)
-            q_bits = get_quantization_bits(dtype)
-            report += f"🔹 {dtype}: {param_count:,} 参数 ({formatted_count}, {percentage:.2f}%, Q={q_bits})\n"
-        
-        # 判断精度类型
-        dtypes = list(dtype_param_count.keys())
-        if all(dtype == torch.float32 for dtype in dtypes):
-            report += "\n✅ 模型为纯 FP32（float32）"
-        elif all(dtype == torch.float16 for dtype in dtypes):
-            report += "\n✅ 模型为纯 FP16（float16）"
-        elif all(dtype == torch.bfloat16 for dtype in dtypes):
-            report += "\n✅ 模型为纯 BF16（bfloat16）"
-        else:
-            report += f"\n⚠️ 模型为混合精度（主要精度: {main_dtype}, 占比: {main_percentage:.1f}%）"
-
-        # 显示不同精度的显存需求对比
-        report += f"\n\n🔍 不同精度显存需求对比:"
-        for bits, precision_name in [(32, "FP32"), (16, "FP16/BF16"), (8, "INT8"), (4, "INT4")]:
-            mem_req = calculate_memory_requirement(total_params, bits)
-            report += f"\n   {precision_name}: {mem_req:.1f} GB"
-
-
 
         report += f"\n{'─' * hang}\n"  # 分隔线
+
         # 显示前几个唯一的tensor名称
         if unique_names:
             report += f"🏷️ 前10个唯一张量名称:\n"
@@ -314,7 +280,48 @@ def inspect_safetensors(filepath):
                 report += f"   ... 还有 {len(unique_third_prefixes) - 10} 个第三前缀\n\n"
             else:
                 report += "\n"
+
+
+
         
+        report += f"{'─' * hang}\n"  # 分隔线
+        report += f"📊 总参数量: {total_params:,} ({format_param_count_practical(total_params)})\n"
+        report += f"📈 张量数量: {len(tensors)} (唯一名称: {unique_name_count}, 重复名称: {len(duplicate_names)})\n"
+        report += f"🏷️ 前缀统计: {unique_prefix_count} 个不同第一前缀, {unique_second_prefix_count} 个不同第二前缀, {unique_third_prefix_count} 个不同第三前缀\n"
+        report += f"💾 显存估算: {memory_gb:.1f} GB (基于公式: M = (P × Q) / 8 × 1.2)\n"
+        report += f"   - P = {total_params / 1_000_000_000:.1f}B (参数量)\n"
+        report += f"   - Q = {Q_value} (主要精度: {main_dtype})\n\n"
+        
+
+        # 按参数量排序显示
+        sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
+        
+        for dtype, param_count in sorted_dtypes:
+            percentage = (param_count / total_params) * 100
+            formatted_count = format_param_count_practical(param_count)
+            q_bits = get_quantization_bits(dtype)
+            report += f"🔹 {dtype}: {param_count:,} 参数 ({formatted_count}, {percentage:.2f}%, Q={q_bits})\n"
+        
+        # 判断精度类型
+        dtypes = list(dtype_param_count.keys())
+        if all(dtype == torch.float32 for dtype in dtypes):
+            report += "\n✅ 模型为纯 FP32（float32）"
+        elif all(dtype == torch.float16 for dtype in dtypes):
+            report += "\n✅ 模型为纯 FP16（float16）"
+        elif all(dtype == torch.bfloat16 for dtype in dtypes):
+            report += "\n✅ 模型为纯 BF16（bfloat16）"
+        else:
+            report += f"\n⚠️ 模型为混合精度（主要精度: {main_dtype}, 占比: {main_percentage:.1f}%）"
+
+        # 显示不同精度的显存需求对比
+        report += f"\n\n🔍 不同精度显存需求对比:"
+        for bits, precision_name in [(32, "FP32"), (16, "FP16/BF16"), (8, "INT8"), (4, "INT4")]:
+            mem_req = calculate_memory_requirement(total_params, bits)
+            report += f"\n   {precision_name}: {mem_req:.1f} GB"
+
+
+
+        report += f"\n{'─' * hang}\n"  # 分隔线
 
 
         # 保存分析结果到 .checkinfo 文件
@@ -449,7 +456,7 @@ def inspect_gguf(path):
         
         # 生成报告
         report = f"📄 GGUF文件: {os.path.basename(path)}\n"
-        
+        report += f"\n{'─' * hang}\n"  # 分隔线
         # 添加元数据信息
         if metadata:
             report += f"📚 元数据信息:\n"
@@ -462,23 +469,6 @@ def inspect_gguf(path):
         else:
             report += f"📚 元数据: 无\n\n"
         
-        report += f"{'─' * hang}\n"  # 分隔线
-        report += f"📊 总参数量: {total_params:,} ({format_param_count_practical(total_params)})\n"
-        report += f"📈 张量数量: {len(reader.tensors)} (唯一名称: {unique_name_count}, 重复名称: {len(duplicate_names)})\n"
-        report += f"🏷️ 前缀统计: {unique_prefix_count} 个不同第一前缀, {unique_second_prefix_count} 个不同第二前缀, {unique_third_prefix_count} 个不同第三前缀\n"
-        report += f" 显存估算: {memory_gb:.1f} GB (基于公式: M = (P × Q) / 8 × 1.2)\n"
-        report += f"   - P = {total_params / 1_000_000_000:.1f}B\n"
-        report += f"   - Q = {Q_value} (主要格式: {main_dtype})\n\n"
-        
-
-        # 显示各类型参数
-        sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
-        for dtype, param_count in sorted_dtypes:    
-            percentage = (param_count / total_params) * 100
-            formatted_count = format_param_count_practical(param_count)
-            report += f"🔹 {dtype}: {param_count:,} 参数 ({formatted_count}, {percentage:.2f}%)\n"
-
-
         report += f"\n{'─' * hang}\n"  # 分隔线
         # 显示前几个唯一的tensor名称
         if unique_names:
@@ -527,6 +517,25 @@ def inspect_gguf(path):
                 report += "\n"
         
 
+        
+        report += f"{'─' * hang}\n"  # 分隔线
+        report += f"📊 总参数量: {total_params:,} ({format_param_count_practical(total_params)})\n"
+        report += f"📈 张量数量: {len(reader.tensors)} (唯一名称: {unique_name_count}, 重复名称: {len(duplicate_names)})\n"
+        report += f"🏷️ 前缀统计: {unique_prefix_count} 个不同第一前缀, {unique_second_prefix_count} 个不同第二前缀, {unique_third_prefix_count} 个不同第三前缀\n"
+        report += f" 显存估算: {memory_gb:.1f} GB (基于公式: M = (P × Q) / 8 × 1.2)\n"
+        report += f"   - P = {total_params / 1_000_000_000:.1f}B\n"
+        report += f"   - Q = {Q_value} (主要格式: {main_dtype})\n\n"
+        
+
+        # 显示各类型参数
+        sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
+        for dtype, param_count in sorted_dtypes:    
+            percentage = (param_count / total_params) * 100
+            formatted_count = format_param_count_practical(param_count)
+            report += f"🔹 {dtype}: {param_count:,} 参数 ({formatted_count}, {percentage:.2f}%)\n"
+
+
+        report += f"\n{'─' * hang}\n"  # 分隔线
         
         # 保存分析结果到 .checkinfo 文件
         checkinfo_filename = path.rsplit('.', 1)[0] + '.checkinfo'
