@@ -11,5 +11,4 @@ th vistor!
 xxxx/python.exe -m pip install tkinterdnd2
 xxxx/python.exe checkall.py即可
 ```
-<img width="651" height="1011" alt="image" src="https://github.com/user-attachments/assets/c74256ec-12b2-4ba8-b195-96c6bc4f31c5" />
-<img width="625" height="606" alt="image" src="https://github.com/user-attachments/assets/cc87a30c-0428-4a53-abe0-99d4906eb79f" />
+<img width="805" height="1040" alt="image" src="https://github.com/user-attachments/assets/82a75523-d9d4-42d0-a8db-947ad57bc6e8" />
