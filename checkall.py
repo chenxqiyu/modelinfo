@@ -13,6 +13,7 @@ import tkinter as tk
 from tkinterdnd2 import TkinterDnD, DND_FILES
 from llama_cpp import Llama
 
+hang=25
 class StdoutRedirector:
     def __init__(self, text_widget):
         self.text_widget = text_widget
@@ -132,8 +133,19 @@ def inspect_safetensors(filepath):
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"文件不存在: {filepath}")
         
-        # 加载safetensors文件
-        tensors = load_file(filepath)
+        # 加载safetensors文件（带元数据）
+        with open(filepath, "rb") as f:
+            from safetensors import safe_open
+            tensors = load_file(filepath)
+            # 打开文件以读取元数据
+            metadata = {}
+            try:
+                with safe_open(filepath, framework="pt", device="cpu") as f:
+                    metadata = f.metadata()
+            except:
+                # 如果无法读取元数据，尝试其他方法
+                pass
+        
         print(f"✅ 成功加载文件，包含 {len(tensors)} 个张量")
         
         # 统计dtype和参数量
@@ -206,6 +218,20 @@ def inspect_safetensors(filepath):
         
         # 生成报告
         report = f"📄 文件: {os.path.basename(filepath)}\n"
+        
+        # 添加元数据信息
+        if metadata:
+            report += f"📚 元数据信息:\n"
+            for key, value in list(metadata.items())[:10]:  # 显示前10个元数据项
+                report += f"   {key}: {value}\n"
+            if len(metadata) > 10:
+                report += f"   ... 还有 {len(metadata) - 10} 个元数据项\n\n"
+            else:
+                report += "\n"
+        else:
+            report += f"📚 元数据: 无\n\n"
+        
+        report += f"{'─' * hang}\n"  # 分隔线
         report += f"📊 总参数量: {total_params:,} ({format_param_count_practical(total_params)})\n"
         report += f"📈 张量数量: {len(tensors)} (唯一名称: {unique_name_count}, 重复名称: {len(duplicate_names)})\n"
         report += f"🏷️ 前缀统计: {unique_prefix_count} 个不同第一前缀, {unique_second_prefix_count} 个不同第二前缀, {unique_third_prefix_count} 个不同第三前缀\n"
@@ -213,60 +239,7 @@ def inspect_safetensors(filepath):
         report += f"   - P = {total_params / 1_000_000_000:.1f}B (参数量)\n"
         report += f"   - Q = {Q_value} (主要精度: {main_dtype})\n\n"
         
-        # 显示前几个唯一的tensor名称
-        if unique_names:
-            report += f"🏷️ 前10个唯一张量名称:\n"
-            for i, name in enumerate(unique_names[:10]):
-                report += f"   {i+1}. {name}\n"
-            if len(unique_names) > 10:
-                report += f"   ... 还有 {len(unique_names) - 10} 个名称\n\n"
-            else:
-                report += "\n"
-        
-        # 显示前几个唯一的前缀（第一次出现的前缀）
-        if unique_prefixes:
-            report += f"🏷️ 第一前缀统计 (按首次出现顺序):\n"
-            for i, prefix in enumerate(unique_prefixes[:10]):  # 显示前10个不同的前缀
-                count = prefix_counts[prefix]
-                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
-            if len(unique_prefixes) > 10:
-                report += f"   ... 还有 {len(unique_prefixes) - 10} 个前缀\n\n"
-            else:
-                report += "\n"
-        
-        # 显示前几个唯一的第二前缀（第一次出现的第二前缀）
-        if unique_second_prefixes:
-            report += f"🏷️ 第二前缀统计 (按首次出现顺序):\n"
-            for i, prefix in enumerate(unique_second_prefixes[:10]):  # 显示前10个不同的第二前缀
-                count = second_prefix_counts[prefix]
-                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
-            if len(unique_second_prefixes) > 10:
-                report += f"   ... 还有 {len(unique_second_prefixes) - 10} 个第二前缀\n\n"
-            else:
-                report += "\n"
-        
-        # 显示前几个唯一的第三前缀（第一次出现的第三前缀）
-        if unique_third_prefixes:
-            report += f"🏷️ 第三前缀统计 (按首次出现顺序):\n"
-            for i, prefix in enumerate(unique_third_prefixes[:10]):  # 显示前10个不同的第三前缀
-                count = third_prefix_counts[prefix]
-                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
-            if len(unique_third_prefixes) > 10:
-                report += f"   ... 还有 {len(unique_third_prefixes) - 10} 个第三前缀\n\n"
-            else:
-                report += "\n"
-        
-        # 显示前几个唯一的第三前缀（第一次出现的第三前缀）
-        if unique_third_prefixes:
-            report += f"🏷️ 第三前缀统计 (按首次出现顺序):\n"
-            for i, prefix in enumerate(unique_third_prefixes[:10]):  # 显示前10个不同的第三前缀
-                count = third_prefix_counts[prefix]
-                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
-            if len(unique_third_prefixes) > 10:
-                report += f"   ... 还有 {len(unique_third_prefixes) - 10} 个第三前缀\n\n"
-            else:
-                report += "\n"
-        
+
         # 按参数量排序显示
         sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
         
@@ -292,6 +265,57 @@ def inspect_safetensors(filepath):
         for bits, precision_name in [(32, "FP32"), (16, "FP16/BF16"), (8, "INT8"), (4, "INT4")]:
             mem_req = calculate_memory_requirement(total_params, bits)
             report += f"\n   {precision_name}: {mem_req:.1f} GB"
+
+
+
+        report += f"\n{'─' * hang}\n"  # 分隔线
+        # 显示前几个唯一的tensor名称
+        if unique_names:
+            report += f"🏷️ 前10个唯一张量名称:\n"
+            for i, name in enumerate(unique_names[:10]):
+                report += f"   {i+1}. {name}\n"
+            if len(unique_names) > 10:
+                report += f"   ... 还有 {len(unique_names) - 10} 个名称\n\n"
+            else:
+                report += "\n"
+        
+        report += f"{'─' * hang}\n"  # 分隔线
+        # 显示前几个唯一的前缀（第一次出现的前缀）
+        if unique_prefixes:
+            report += f"🏷️ 第一前缀统计 (按首次出现顺序):\n"
+            for i, prefix in enumerate(unique_prefixes[:10]):  # 显示前10个不同的前缀
+                count = prefix_counts[prefix]
+                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
+            if len(unique_prefixes) > 10:
+                report += f"   ... 还有 {len(unique_prefixes) - 10} 个前缀\n\n"
+            else:
+                report += "\n"
+        
+        report += f"{'─' * hang}\n"  # 分隔线
+        # 显示前几个唯一的第二前缀（第一次出现的第二前缀）
+        if unique_second_prefixes:
+            report += f"🏷️ 第二前缀统计 (按首次出现顺序):\n"
+            for i, prefix in enumerate(unique_second_prefixes[:10]):  # 显示前10个不同的第二前缀
+                count = second_prefix_counts[prefix]
+                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
+            if len(unique_second_prefixes) > 10:
+                report += f"   ... 还有 {len(unique_second_prefixes) - 10} 个第二前缀\n\n"
+            else:
+                report += "\n"
+        
+        report += f"{'─' * hang}\n"  # 分隔线
+        # 显示前几个唯一的第三前缀（第一次出现的第三前缀）
+        if unique_third_prefixes:
+            report += f"🏷️ 第三前缀统计 (按首次出现顺序):\n"
+            for i, prefix in enumerate(unique_third_prefixes[:10]):  # 显示前10个不同的第三前缀
+                count = third_prefix_counts[prefix]
+                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
+            if len(unique_third_prefixes) > 10:
+                report += f"   ... 还有 {len(unique_third_prefixes) - 10} 个第三前缀\n\n"
+            else:
+                report += "\n"
+        
+
 
         # 保存分析结果到 .checkinfo 文件
         checkinfo_filename = filepath.rsplit('.', 1)[0] + '.checkinfo'
@@ -323,6 +347,25 @@ def inspect_gguf(path):
         
         reader = gguf.GGUFReader(path)
         print(f"✅ 成功加载GGUF文件: {os.path.basename(path)}")
+        
+        # 读取GGUF文件的元数据
+        metadata = {}
+        for field_name, field_value in reader.fields.items():
+            try:
+                # 获取字段值
+                if hasattr(field_value, 'tolist'):
+                    # 如果是numpy数组，转换为列表或标量
+                    value = field_value.tolist()
+                elif hasattr(field_value, 'value'):
+                    # 如果是GGUF特定类型，获取其值
+                    value = field_value.value
+                else:
+                    # 直接使用值
+                    value = field_value
+                metadata[field_name] = value
+            except:
+                # 如果转换失败，使用原始值的字符串表示
+                metadata[field_name] = str(field_value)
         
         # 统计dtype和参数量
         dtype_param_count = {}
@@ -406,13 +449,37 @@ def inspect_gguf(path):
         
         # 生成报告
         report = f"📄 GGUF文件: {os.path.basename(path)}\n"
+        
+        # 添加元数据信息
+        if metadata:
+            report += f"📚 元数据信息:\n"
+            for key, value in list(metadata.items())[:10]:  # 显示前10个元数据项
+                report += f"   {key}: {value}\n"
+            if len(metadata) > 10:
+                report += f"   ... 还有 {len(metadata) - 10} 个元数据项\n\n"
+            else:
+                report += "\n"
+        else:
+            report += f"📚 元数据: 无\n\n"
+        
+        report += f"{'─' * hang}\n"  # 分隔线
         report += f"📊 总参数量: {total_params:,} ({format_param_count_practical(total_params)})\n"
         report += f"📈 张量数量: {len(reader.tensors)} (唯一名称: {unique_name_count}, 重复名称: {len(duplicate_names)})\n"
         report += f"🏷️ 前缀统计: {unique_prefix_count} 个不同第一前缀, {unique_second_prefix_count} 个不同第二前缀, {unique_third_prefix_count} 个不同第三前缀\n"
-        report += f"�� 显存估算: {memory_gb:.1f} GB (基于公式: M = (P × Q) / 8 × 1.2)\n"
+        report += f" 显存估算: {memory_gb:.1f} GB (基于公式: M = (P × Q) / 8 × 1.2)\n"
         report += f"   - P = {total_params / 1_000_000_000:.1f}B\n"
         report += f"   - Q = {Q_value} (主要格式: {main_dtype})\n\n"
         
+
+        # 显示各类型参数
+        sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
+        for dtype, param_count in sorted_dtypes:    
+            percentage = (param_count / total_params) * 100
+            formatted_count = format_param_count_practical(param_count)
+            report += f"🔹 {dtype}: {param_count:,} 参数 ({formatted_count}, {percentage:.2f}%)\n"
+
+
+        report += f"\n{'─' * hang}\n"  # 分隔线
         # 显示前几个唯一的tensor名称
         if unique_names:
             report += f"🏷️ 前10个唯一张量名称:\n"
@@ -423,6 +490,7 @@ def inspect_gguf(path):
             else:
                 report += "\n"
         
+        report += f"{'─' * hang}\n"  # 分隔线
         # 显示前几个唯一的前缀（第一次出现的前缀）
         if unique_prefixes:
             report += f"🏷️ 第一前缀统计 (按首次出现顺序):\n"
@@ -434,6 +502,7 @@ def inspect_gguf(path):
             else:
                 report += "\n"
         
+        report += f"{'─' * hang}\n"  # 分隔线
         # 显示前几个唯一的第二前缀（第一次出现的第二前缀）
         if unique_second_prefixes:
             report += f"🏷️ 第二前缀统计 (按首次出现顺序):\n"
@@ -445,12 +514,19 @@ def inspect_gguf(path):
             else:
                 report += "\n"
         
-        # 显示各类型参数
-        sorted_dtypes = sorted(dtype_param_count.items(), key=lambda x: x[1], reverse=True)
-        for dtype, param_count in sorted_dtypes:
-            percentage = (param_count / total_params) * 100
-            formatted_count = format_param_count_practical(param_count)
-            report += f"🔹 {dtype}: {param_count:,} 参数 ({formatted_count}, {percentage:.2f}%)\n"
+        report += f"{'─' * hang}\n"  # 分隔线
+        # 显示前几个唯一的第三前缀（第一次出现的第三前缀）
+        if unique_third_prefixes:
+            report += f"🏷️ 第三前缀统计 (按首次出现顺序):\n"
+            for i, prefix in enumerate(unique_third_prefixes[:10]):  # 显示前10个不同的第三前缀
+                count = third_prefix_counts[prefix]
+                report += f"   {i+1}. {prefix} ({count} 个张量)\n"
+            if len(unique_third_prefixes) > 10:
+                report += f"   ... 还有 {len(unique_third_prefixes) - 10} 个第三前缀\n\n"
+            else:
+                report += "\n"
+        
+
         
         # 保存分析结果到 .checkinfo 文件
         checkinfo_filename = path.rsplit('.', 1)[0] + '.checkinfo'
